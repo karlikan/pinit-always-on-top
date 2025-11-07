@@ -1,0 +1,57 @@
+name: Build Windows Portable
+
+on:
+  workflow_dispatch: {}
+  push:
+    paths:
+      - "**/*.py"
+      - "requirements.txt"
+      - "assets/**"
+      - ".github/workflows/build-windows.yml"
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      # на всякий случай создаём assets, даже если папка не закоммичена
+      - name: Ensure assets dir exists
+        run: |
+          if (!(Test-Path -LiteralPath "assets")) {
+            New-Item -ItemType Directory -Path "assets" | Out-Null
+          }
+
+      # для ^ нужен cmd-шелл
+      - name: Build with PyInstaller
+        shell: cmd
+        run: |
+          pyinstaller --noconfirm --clean ^
+            --name "PinIt" ^
+            --windowed ^
+            --onedir ^
+            --add-data "assets;assets" ^
+            main.py
+
+      - name: Zip portable
+        run: |
+          powershell -Command "Compress-Archive -Path dist/PinIt/* -DestinationPath PinIt-portable.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PinIt-portable
+          path: PinIt-portable.zip
